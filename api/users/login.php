@@ -1,6 +1,9 @@
 <?php
   header("Access-Control-Allow-Origin: *");
   header("Content-Type: application/json; charset=UTF8");
+  header("Access-Control-Allow-Methods: POST");
+  header("Access-Control-Max-Age: 3600");
+  header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
 
   include_once '../../Conexion.php';
   include_once '../models/User.php';
@@ -11,6 +14,15 @@
   $username=$data->username;
   $password=$data->password;
 
+  if(empty($username) || empty($password)){
+    http_response_code(404);
+
+    echo json_encode(
+      array(
+        "message"=>"Usuario o contrasenia vacia",
+        "status"=>false
+      ));
+  }else{
   //Conexion a Database
   $database=new Database();
 
@@ -50,4 +62,5 @@
       );
     }
   }
+}
  ?>
