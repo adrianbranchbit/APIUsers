@@ -16,6 +16,7 @@ class User{
 
   public function read()
   {
+    /*Leer los usuarios registrados*/
     $query="SELECT id, name, username, email, password FROM ". $this->table_name;
     $stmt=$this->conn->prepare($query);
 
@@ -25,6 +26,7 @@ class User{
 
   public function insert($User)
   {
+    /*Insertar un usuario*/
     $query="INSERT INTO ".$this->table_name."
     (name, username,email, password, registerDate) VALUES
     (:name, :username,:email,:password,:registerDate)";
@@ -32,20 +34,19 @@ class User{
     $stmt=$this->conn->prepare($query);
 
     //Preparar datos, porque la funcion bindParam solo acepta variables
-
-    $password=password_hash($User['password'],PASSWORD_DEFAULT);
+    $password=password_hash($User->password,PASSWORD_DEFAULT);
     $fechaRegistro=date('Y-m-d H:i:s');
 
-    $stmt->bindParam(":name",$User['name']);
-    $stmt->bindParam(":username",$User['username']);
-    $stmt->bindParam(":email",$User['email']);
+    $stmt->bindParam(":name",$User->name);
+    $stmt->bindParam(":username",$User->username);
+    $stmt->bindParam(":email",$User->email);
     $stmt->bindParam(":password",$password);
     $stmt->bindParam(":registerDate",$fechaRegistro);
 
     return $stmt->execute();
   }
 
-  public function insertUsuario_Group($group_id)
+  public function insertUsuario_Group($groups_id)
   {
     //Buscar ultimo registro insertado
     $query="SELECT id
@@ -54,79 +55,100 @@ class User{
 
     $stmt=$this->conn->prepare($query);
     $stmt->execute();
+
     $result=$stmt->fetch(PDO::FETCH_ASSOC);
     $user_id=$result['id'];
 
-    //Insertar en site_user_usergroup_map tabla pivote
-    $query="INSERT INTO site_user_usergroup_map VALUES (:user_id, :group_id)";
-    $stmt=$this->conn->prepare($query);
+    foreach ($groups_id as $group_id) {
+      /*Insertar uno o varios registros
+       en site_user_usergroup_map tabla pivote */
+      $query="INSERT INTO site_user_usergroup_map VALUES (:user_id, :group_id)";
+      $stmt=$this->conn->prepare($query);
 
-    $stmt->bindParam(":user_id",$user_id);
-    $stmt->bindParam(":group_id",$group_id);
+      $stmt->bindParam(":user_id",$user_id);
+      $stmt->bindParam(":group_id",$group_id->group_id);
 
-    return $stmt->execute();
+      $stmt->execute();
+    }
   }
 
   public function login($username,$password)
   {
     $contador=0;
+    /*Buscar que el username exista*/
     $query="SELECT * from ".$this->table_name." where username= :username";
-    //$query="SELECT * FROM ".$this->table_name." where username= :username and password=:password";
-    $stmt=$this->conn->prepare($query);
-    $stmt->execute(array(
-      ":username"=>$username
-      //":password"=>$password
-    ));
 
-    $user_item=array();
-    $users_array["data"]=array();
+    $stmt=$this->conn->prepare($query);
+    $stmt->bindParam(":username",$username);
+    $stmt->execute();
 
     while($row=$stmt->fetch(PDO::FETCH_ASSOC)){
+      /*Si existe el username, verificar contraseña hasheada*/
       //$row['name'] to just $name only
       if(password_verify($password,$row['password'])){
             extract($row);
-            $user_item=array(
-              'id'=>$id
-            );
+            //Retornar el id del usaurio
+            return $id;
       }
     }
-    return $user_item;
+    return null;
   }
 
   public function getGroup($idUser)
   {
+    /*Seleccionar todos los grupos a los que pertenece un usuario*/
     $query="SELECT m.group_id
     FROM site_user_usergroup_map as m JOIN site_users as u
     ON m.user_id = u.id WHERE u.id = :idUser";
 
     $stmt=$this->conn->prepare($query);
-    $stmt->execute(array(
-      ':idUser'=>$idUser
-    ));
+    $stmt->bindParam(":idUser",$idUser);
+    $stmt->execute();
 
-    $row=$stmt->fetch(PDO::FETCH_ASSOC);
-    extract($row);
-    $idGroup=$group_id;
+    $groups=array();
 
-    $query="SELECT id, title FROM site_usergroups
-    WHERE id=:idGroup";
+    while($row=$stmt->fetch(PDO::FETCH_ASSOC)){
+      extract($row);
+      array_push($groups,$group_id);
+    }
 
-    $stmt=$this->conn->prepare($query);
-    $stmt->execute(array(
-      ':idGroup'=>$idGroup
-    ));
 
-    return $stmt;
+    $groups_title=array();
+
+    /*Recorrer todos los grupos a los que pertenece el usuario
+    para seleccionar el id y titulo de dicho grupo*/
+    foreach ($groups as $idGroup) {
+      $query="SELECT id, title FROM site_usergroups
+      WHERE id=:idGroup";
+
+      $stmt=$this->conn->prepare($query);
+      $stmt->bindParam(":idGroup",$idGroup);
+      $stmt->execute();
+
+      $result=$stmt->fetch(PDO::FETCH_ASSOC);
+      extract($result);
+      $group_item=array(
+        'id'=>$id,
+        'title'=>$title
+      );
+
+      array_push($groups_title,$group_item);
+    }
+
+    //Retornar array con los grupos a los que pertenece el usuario
+    return $groups_title;
   }
 
   public function validarRegistro($username)
   {
+    /*Valida que no exista un username identico,
+    al momento de registrarse*/
     $query="SELECT COUNT(*) FROM ".$this->table_name."
     WHERE username=:username";
     $stmt=$this->conn->prepare($query);
     $stmt->bindParam(":username",$username);
     $stmt->execute();
-    //Retorna el resultado del query
+    //Retorna el resultado del query 1 o 0
     return $stmt->fetchColumn();
   }
 
@@ -142,7 +164,6 @@ $conn=$database->getConnection();
 
 
 $user=new User($conn);
-$contador=$user->insertUsuario_Group(1);
-echo $contador['id'];
+$contador=$user->getGroup(101);
 */
  ?>
